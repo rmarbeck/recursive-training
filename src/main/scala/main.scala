@@ -203,7 +203,16 @@ object RecursionKata:
 
   def fibMemo(n: Int): Long =
     // TODO: fib(0)=0 fib(1)=1, mémo obligatoire
-    ???
+    val cache = scala.collection.mutable.Map.empty[Int, Long]
+    def loop(depth: Int): Long =
+      depth match
+        case 0 => 0L
+        case 1 => 1L
+        case other => cache.getOrElseUpdate(other, {
+          loop(depth - 1) + loop(depth - 2)
+        })
+
+    loop(n)
 
   def minCoins(amount: Int, coins: List[Int]): Option[Int] =
     // TODO: nombre minimum de pièces pour faire amount (>=0), pièces illimitées
@@ -307,11 +316,11 @@ object RecursionKata:
     assert(countPathsPassingThroughDAG(g, "svr", "out", Set("fft", "dac")) == 2L)
 
     // 6) dp
-    /*assert(fibMemo(0) == 0)
+    assert(fibMemo(0) == 0)
     assert(fibMemo(1) == 1)
     assert(fibMemo(10) == 55)
 
-    assert(minCoins(0, List(1, 3, 4)).contains(0))
+    /*assert(minCoins(0, List(1, 3, 4)).contains(0))
     assert(minCoins(6, List(1, 3, 4)).contains(2))  // 3+3
     assert(minCoins(7, List(2, 4)).isEmpty)
 
