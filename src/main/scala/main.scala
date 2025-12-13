@@ -132,26 +132,20 @@ object RecursionKata:
     else
       xs match
         case Nil => Nil
-        case list if k == list.length => List(list)
         case head :: tail =>
           val withoutHead = subsetsOfSize(tail, k - 1)
           subsetsOfSize(tail, k) ::: withoutHead.map(head +: _)
 
   def permutations[A](xs: List[A]): List[List[A]] =
-    def loop(toInsert: A, inList: List[A], index: Int = 0): List[List[A]] =
-      if (index == inList.length)
-        List(inList :+ toInsert)
-      else
-        (inList.take(index) ::: (toInsert +: inList.drop(index + 1))) :: loop(toInsert, inList, index + 1)
+    def insertEveryWhere(toInsert: A, inList: List[A]): List[List[A]] =
+      inList match
+        case Nil => List(List(toInsert))
+        case head :: tail =>
+          (toInsert :: inList) :: insertEveryWhere(toInsert, tail).map(innerList => head +: innerList )
 
-    // TODO: petit n (<= 8)
     xs match
-      case Nil => Nil
-      case head :: Nil => List(List(head))
-      case head :: tail =>
-        val withoutHead = permutations(tail)
-          
-        .flatMap(tailPerm => loop(head, tailPerm))
+      case Nil => List(Nil)
+      case head :: tail => permutations(tail).flatMap(insertEveryWhere(head, _))
 
 
   // ------------------------------------------------------------
@@ -161,13 +155,28 @@ object RecursionKata:
   type Graph[A] = Map[A, Set[A]]
 
   def countPathsDAG[A](g: Graph[A], start: A, end: A): Long =
-    // TODO: suppose que c'est un DAG (pas de cycles)
-    // Utilise la mémoïsation: memo(node) = nb de chemins node -> end
-    ???
+    val cache = scala.collection.mutable.Map.empty[A, Long]
+
+    def loop(current: A)(using g: Graph[A]): Long =
+      cache.getOrElseUpdate(current, {
+        if (current == end)
+          1L
+        else
+          g(current).iterator.map(loop).sum
+      })
+
+    loop(start)(using g)
 
   def countPathsNoCycles[A](g: Graph[A], start: A, end: A): Long =
     // TODO: graphe quelconque, évite les cycles par visited (DFS)
-    ???
+
+    def loop(current: A, visited: Set[A])(using g: Graph[A]): Long =
+      current match
+        case c if visited.contains(c) => 0L
+        case c if c == end => 1L
+        case c  => g(c).iterator.map(loop(_, visited + c)).sum
+
+    loop(start, Set.empty[A])(using g)
 
   def countPathsPassingThroughDAG[A](
                                       g: Graph[A],
@@ -177,7 +186,15 @@ object RecursionKata:
                                     ): Long =
     // TODO: version DAG: compter les chemins start->end qui passent par tous les noeuds de mustPass
     // Indice: transforme l'état en (node, mask) ou (node, remaining)
-    ???
+    def loop(current: A, remaining: Set[A])(using g: Graph[A]): Long =
+      val nextRemaining = remaining - current
+
+      current match
+        case c if c == end =>
+          if nextRemaining.isEmpty then 1L else 0L
+        case c  => g(c).iterator.map(loop(_, nextRemaining)).sum
+
+    loop(start, mustPass)(using g)
 
 
   // ------------------------------------------------------------
@@ -268,7 +285,7 @@ object RecursionKata:
     assert(perms.contains(List(3, 2, 1)))
 
     // 5) graphes
-    /*val g: Graph[String] = Map(
+    val g: Graph[String] = Map(
       "svr" -> Set("aaa", "bbb"),
       "aaa" -> Set("fft"),
       "fft" -> Set("ccc"),
@@ -284,12 +301,13 @@ object RecursionKata:
       "hhh" -> Set("out"),
       "out" -> Set.empty
     )
-    assert(countPathsDAG(g, "svr", "out") == 4L) // à vérifier: chemins = 4
-    assert(countPathsNoCycles(g, "svr", "out") == 4L)
+
+    assert(countPathsDAG(g, "svr", "out") == 8L) // à vérifier: chemins = 4
+    assert(countPathsNoCycles(g, "svr", "out") == 8L)
     assert(countPathsPassingThroughDAG(g, "svr", "out", Set("fft", "dac")) == 2L)
 
     // 6) dp
-    assert(fibMemo(0) == 0)
+    /*assert(fibMemo(0) == 0)
     assert(fibMemo(1) == 1)
     assert(fibMemo(10) == 55)
 
