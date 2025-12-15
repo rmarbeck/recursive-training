@@ -240,8 +240,6 @@ object RecursionKata:
     require(!coins.exists(_ <= 0))
 
     // TODO: nombre minimum de pièces pour faire amount (>=0), pièces illimitées
-    // Retourne None si impossible
-    // Indice: DP top-down memo(amount)
     val cache = new CountingCache[Int, Option[Int]]
 
     def loop(remaining: Int): Option[Int] =
@@ -262,7 +260,28 @@ object RecursionKata:
   def isBalancedParens(s: String): Boolean =
     // TODO: uniquement '(' et ')', ignorer les autres chars
     // Indice: récursion sur index + compteur de profondeur
-    ???
+    def loop(parOnly: String): Boolean =
+      println(s"loop: $parOnly")
+      @tailrec
+      def findCorresponding(subString: String, depth: Int = 1, index: Int = 0): Option[Int] =
+        if index >= subString.length then None
+        else
+          (subString.charAt(index), depth) match
+            case (')', 1) => Some(index)
+            case (')', currentDepth) => findCorresponding(subString, currentDepth - 1, index + 1)
+            case (_, currentDepth) => findCorresponding(subString, currentDepth + 1, index + 1)
+
+      parOnly match
+        case "" => true
+        case value if value.length % 2 == 1 => false
+        case s"($tail" =>
+          val indexO = findCorresponding(tail)
+          indexO match
+            case Some(index) => loop(tail.take(index)) && loop(tail.drop(index))
+            case None => false
+        case _ => false
+
+    loop(s.filter(char => char == '(' || char == ')'))
 
   // Mini-evaluateur d'expression: + et * et parenthèses
   // Grammaire (sans espaces) :
@@ -360,12 +379,12 @@ object RecursionKata:
     assert(minCoins(6760, List(10, 20, 50, 100, 200)).contains(36))
 
     // 7) strings
-    /*assert(isBalancedParens("(()())"))
+    assert(isBalancedParens("(()())"))
     assert(!isBalancedParens("(()"))
     assert(!isBalancedParens("())("))
     assert(isBalancedParens("a(b)c"))
 
-    assert(evalExpr("1+2*3") == Right(7))
+    /*assert(evalExpr("1+2*3") == Right(7))
     assert(evalExpr("(1+2)*3") == Right(9))
     assert(evalExpr("10*(2+3)") == Right(50))
     assert(evalExpr(")") .isLeft)
