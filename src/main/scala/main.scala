@@ -5,6 +5,27 @@
 
 import scala.annotation.tailrec
 
+
+final class CountingCache[K, V]:
+  private val m = scala.collection.mutable.HashMap.empty[K, V]
+  private var _hits: Long = 0L
+  private var _misses: Long = 0L
+
+  def hits: Long = _hits
+  def misses: Long = _misses
+  def size: Int = m.size
+
+  inline def getOrElseUpdate(key: K, compute: => V): V =
+    m.get(key) match
+      case Some(v) =>
+        _hits += 1
+        v
+      case None =>
+        _misses += 1
+        val v = compute
+        m.put(key, v)
+        v
+
 object RecursionKata:
 
   // ------------------------------------------------------------
@@ -215,11 +236,24 @@ object RecursionKata:
     loop(n)
 
   def minCoins(amount: Int, coins: List[Int]): Option[Int] =
+    require(amount >= 0)
+    require(!coins.exists(_ <= 0))
+
     // TODO: nombre minimum de pièces pour faire amount (>=0), pièces illimitées
     // Retourne None si impossible
     // Indice: DP top-down memo(amount)
-    ???
+    val cache = new CountingCache[Int, Option[Int]]
 
+    def loop(remaining: Int): Option[Int] =
+      cache.getOrElseUpdate(remaining, {
+      remaining match
+        case 0 => Some(0)
+        case value => coins.map(remaining - _).filter(_ >= 0).flatMap(loop).map(_ + 1).minOption
+      })
+
+    val res = loop(amount)
+    println(s"cache hits=${cache.hits}, misses=${cache.misses}, size=${cache.size}")
+    res
 
   // ------------------------------------------------------------
   // 7) RÉCURSION SUR STRING — parenthèses équilibrées + mini parsing
@@ -320,12 +354,13 @@ object RecursionKata:
     assert(fibMemo(1) == 1)
     assert(fibMemo(10) == 55)
 
-    /*assert(minCoins(0, List(1, 3, 4)).contains(0))
+    assert(minCoins(0, List(1, 3, 4)).contains(0))
     assert(minCoins(6, List(1, 3, 4)).contains(2))  // 3+3
     assert(minCoins(7, List(2, 4)).isEmpty)
+    assert(minCoins(6760, List(10, 20, 50, 100, 200)).contains(36))
 
     // 7) strings
-    assert(isBalancedParens("(()())"))
+    /*assert(isBalancedParens("(()())"))
     assert(!isBalancedParens("(()"))
     assert(!isBalancedParens("())("))
     assert(isBalancedParens("a(b)c"))
