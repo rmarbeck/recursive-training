@@ -259,26 +259,19 @@ object RecursionKata:
 
   def isBalancedParens(s: String): Boolean =
     // TODO: uniquement '(' et ')', ignorer les autres chars
-    // Indice: récursion sur index + compteur de profondeur
     def loop(parOnly: String): Boolean =
-      println(s"loop: $parOnly")
       @tailrec
-      def findCorresponding(subString: String, depth: Int = 1, index: Int = 0): Option[Int] =
+      def findClosingOne(subString: String, depth: Int = 1, index: Int = 0): Option[Int] =
         if index >= subString.length then None
         else
           (subString.charAt(index), depth) match
             case (')', 1) => Some(index)
-            case (')', currentDepth) => findCorresponding(subString, currentDepth - 1, index + 1)
-            case (_, currentDepth) => findCorresponding(subString, currentDepth + 1, index + 1)
+            case (')', currentDepth) => findClosingOne(subString, currentDepth - 1, index + 1)
+            case (_, currentDepth) => findClosingOne(subString, currentDepth + 1, index + 1)
 
       parOnly match
         case "" => true
-        case value if value.length % 2 == 1 => false
-        case s"($tail" =>
-          val indexO = findCorresponding(tail)
-          indexO match
-            case Some(index) => loop(tail.take(index)) && loop(tail.drop(index))
-            case None => false
+        case s"($tail" => findClosingOne(tail).exists(index => loop(tail.take(index)) && loop(tail.drop(index + 1)))
         case _ => false
 
     loop(s.filter(char => char == '(' || char == ')'))
@@ -293,7 +286,36 @@ object RecursionKata:
   // On retourne Either(error, value)
   def evalExpr(s: String): Either[String, Int] =
     // TODO: parse récursif avec index; retourne erreur lisible si parse impossible ou restant non consommé
-    ???
+    def readNumber(index: Int): Either[String, Int] =
+      s.charAt(index) match
+        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
+        case value => Left(s"At position $index : $value is not a Number")
+
+    def readExpr(index: Int): Either[String, Int] =
+      readTerm(index) match
+        case Right(int) => Right(int)
+        case _ => ???
+      s.charAt(index) match
+        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
+        case '(' => readExpr(index + 1)
+
+    def readTerm(index: Int): Either[String, Int] =
+      s.charAt(index) match
+        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
+        case '(' => readExpr(index + 1)
+
+    def readFactor(index: Int): Either[String, Int] =
+      readNumber(index) match
+        case Right(int) => Right(int)
+        case Left(message) =>
+          s.charAt(index) match
+            case '(' => readExpr(index + 1)
+            case '(' => readExpr(index + 1)
+      s.charAt(index) match
+        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
+        case '(' => readExpr(index + 1)
+
+    readExpr(0)
 
   // ------------------------------------------------------------
   // TESTS
