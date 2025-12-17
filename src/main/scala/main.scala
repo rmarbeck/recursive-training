@@ -285,37 +285,60 @@ object RecursionKata:
   //
   // On retourne Either(error, value)
   def evalExpr(s: String): Either[String, Int] =
+    type ValAndPos = (Int, Int)
+    type ErrorOrResult = Either[String, ValAndPos]
+    type BinOp = (Int, Int) => Int
+
+    def peek(i : Int): Option[Char] =
+      if i < s.length then Some(s.charAt(i))
+      else None
+
     // TODO: parse récursif avec index; retourne erreur lisible si parse impossible ou restant non consommé
-    def readNumber(index: Int): Either[String, Int] =
-      s.charAt(index) match
-        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
-        case value => Left(s"At position $index : $value is not a Number")
+    def parseExpr(i0: Int): ErrorOrResult = parseOp(i0, parseTerm, ('+', _ + _))
 
-    def readExpr(index: Int): Either[String, Int] =
-      readTerm(index) match
-        case Right(int) => Right(int)
-        case _ => ???
-      s.charAt(index) match
-        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
-        case '(' => readExpr(index + 1)
+    def parseTerm(i0: Int): ErrorOrResult = parseOp(i0, parseFactor, ('*', _ * _))
 
-    def readTerm(index: Int): Either[String, Int] =
-      s.charAt(index) match
-        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
-        case '(' => readExpr(index + 1)
+    def parseOp(i0: Int, parser: Int => ErrorOrResult, op: (Char, BinOp)): ErrorOrResult =
+      parser(i0).flatMap { case (v0, j0) =>
+        def loop(acc: Int, j: Int): ErrorOrResult =
+          peek(j) match
+            case Some(op._1) =>
+              parser(j + 1).flatMap { case (v, j2) => loop(op._2.apply(acc, v), j2) }
+            case _ =>
+              Right((acc, j))
 
-    def readFactor(index: Int): Either[String, Int] =
-      readNumber(index) match
-        case Right(int) => Right(int)
-        case Left(message) =>
-          s.charAt(index) match
-            case '(' => readExpr(index + 1)
-            case '(' => readExpr(index + 1)
-      s.charAt(index) match
-        case value if value.isDigit => readNumber(index + 1) + 10 * value.asDigit
-        case '(' => readExpr(index + 1)
+        loop(v0, j0)
+      }
 
-    readExpr(0)
+
+    def parseFactor(index: Int): ErrorOrResult =
+      peek(index) match
+        case Some(c) if c.isDigit => Right(parseNumber(index))
+        case Some('(') => parseExpr(index + 1).flatMap { case (v, j) =>
+          peek(j) match
+            case Some(')') => Right((v, j + 1))
+            case Some(other) => Left(s"Expected ')' but found '$other' at position $j")
+            case None => Left(s"Expected ')' but found end of input at position $j")
+        }
+
+        case _ => Left("Unknown char found")
+
+
+    def parseNumber(index: Int): ValAndPos =
+      @tailrec
+      def readNumber(currentValue: Int, currentIndex: Int): ValAndPos =
+        peek(currentIndex) match
+          case Some(c) if c.isDigit => readNumber(currentValue*10 + c.asDigit, currentIndex + 1)
+          case _ => (currentValue, currentIndex)
+
+      readNumber(0, index)
+
+
+    parseExpr(0).flatMap { case (v, i) =>
+      if i == s.length then Right(v)
+      else Left(s"Unconsumed input starting with '${s.charAt(i)}' at position $i")
+    }
+
 
   // ------------------------------------------------------------
   // TESTS
@@ -406,11 +429,11 @@ object RecursionKata:
     assert(!isBalancedParens("())("))
     assert(isBalancedParens("a(b)c"))
 
-    /*assert(evalExpr("1+2*3") == Right(7))
+    assert(evalExpr("1+2*3") == Right(7))
     assert(evalExpr("(1+2)*3") == Right(9))
     assert(evalExpr("10*(2+3)") == Right(50))
     assert(evalExpr(")") .isLeft)
 
-    println("✅ Tous les tests passent (si tu as complété les TODO).")*/
+    println("✅ Tous les tests passent (si tu as complété les TODO).")
 
 end RecursionKata
