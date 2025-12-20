@@ -160,16 +160,37 @@ object MediumRecursionKata:
   // ------------------------------------------------------------
 
   def shortestPathNoCycles[A](g: Graph[A], start: A, end: A): Option[Int] =
+    import scala.math.Ordering.Implicits.given
     // TODO:
     // - renvoyer Some(distance) si un chemin simple existe, sinon None
     // - DFS possible avec pruning (best-so-far)
-    /*def loop(from: A, current: Int, best: Option[Int]): Option[Int] =>
-      if from == end then Some(current)
+    def loop(from: A, visited: Set[A], depth: Int, best: Option[Int]): Option[Int] =
+      if best.exists(_ <= depth) then best
+      else if from == end then Some(depth)
       else
-        g(from)
+        g.getOrElse(from, Set.empty[A]).diff(visited).foldLeft(best):
+          case (newBest, next) =>
+            loop(next, visited + from, depth + 1, newBest) max newBest
 
-    loop(start, 0, None)*/
-    ???
+    loop(start, Set(start), 0, None)
+
+
+  def shortestPathNoCycles2[A](g: Graph[A], start: A, end: A): Option[Int] =
+    // TODO:
+    // - renvoyer Some(distance) si un chemin simple existe, sinon None
+    // - DFS possible avec pruning (best-so-far)
+    @tailrec
+    def loop(frontier: Set[A], visited: Set[A], depth: Int): Option[Int] =
+      if frontier.isEmpty then None
+      else if frontier.contains(end) then Some(depth)
+      else
+        val nextFrontier = frontier.iterator
+                              .flatMap(n => g.getOrElse(n, Set.empty).iterator)
+                                  .filterNot(visited)
+                                  .toSet
+        loop(nextFrontier, visited ++ frontier, depth + 1)
+
+    loop(Set(start), Set(start), 0)
 
 
   // ------------------------------------------------------------
@@ -177,12 +198,23 @@ object MediumRecursionKata:
   // ------------------------------------------------------------
 
   def countWays(n: Int, steps: List[Int]): Long =
+    require(n >= 0)
+    require(steps.nonEmpty)
+    require(steps.forall(_ > 0))
     // TODO:
     // - nb de séquences de pas (ordre important) qui somment à n
     // - ex: n=4, steps=List(1,2) => 5
     // Indice: DP memo(n)
-    ???
+    val cache = scala.collection.mutable.Map.empty[Int, Long]
+    def loop(remainingSteps: Int): Long =
+      cache.getOrElseUpdate(remainingSteps, {
+        remainingSteps match
+          case 0 => 1L
+          case notZero =>
+            steps.map(notZero - _).filter(_ >= 0).map(loop).sum
+      })
 
+    loop(n)
 
   // ------------------------------------------------------------
   // 9) wordBreak: découpe de chaîne en mots d'un dictionnaire
@@ -192,7 +224,34 @@ object MediumRecursionKata:
     // TODO:
     // - vrai si s peut être segmentée en mots de dict
     // - DP top-down sur index i
-    ???
+    @tailrec
+    def loop(index: Int, word: String, matches: Int = 0): Option[Int] =
+      if word.isEmpty then Some(matches)
+      else
+        if word.headOption.contains(s.charAt(index)) then loop(index + 1, word.tail, matches + 1)
+        else None
+    
+    if s.isEmpty then true
+    else
+      dict.exists:
+        word =>
+          loop(0, word).exists(newIndex => wordBreak(s.drop(newIndex), dict))
+
+
+
+
+    /*@tailrec
+    def loop(index: Int, subDict: Set[String]): Boolean =
+      if index == s.length then true
+      else
+        val nextSubDict = subDict.filter(_.head == s.charAt(index)).map(_.tail)
+        if nextSubDict.isEmpty then false
+        else
+          if nextSubDict.exists(_.isEmpty) then loop(index + 1, dict)
+          else loop(index + 1, nextSubDict)
+
+    dict.map(loop(0, _))*/
+
 
 
   // ------------------------------------------------------------
@@ -290,8 +349,11 @@ object MediumRecursionKata:
     // 7) shortestPathNoCycles
     // Sur ce graphe, toutes les routes passent par ccc puis fff puis (ggg|hhh) puis out.
     // La plus courte: svr->bbb->tty->ccc->ddd->hub->fff->ggg->out (ou via hhh) : 8 arêtes
-    /*assertEq(shortestPathNoCycles(g, "svr", "out"), Some(8))
+    assertEq(shortestPathNoCycles(g, "svr", "out"), Some(8))
     assertEq(shortestPathNoCycles(g, "out", "svr"), None)
+
+    assertEq(shortestPathNoCycles2(g, "svr", "out"), Some(8))
+    assertEq(shortestPathNoCycles2(g, "out", "svr"), None)
 
     // 8) countWays
     assertEq(countWays(0, List(1, 2)), 1L) // une façon: ne rien faire
@@ -304,7 +366,7 @@ object MediumRecursionKata:
     assertEq(wordBreak("catsandog", Set("cats", "dog", "sand", "and", "cat")), false)
 
     // 10) parseJ
-    assertEq(parseJ("123"), Right(JNum(123)))
+    /*assertEq(parseJ("123"), Right(JNum(123)))
     assertEq(parseJ("[1,2,3]"), Right(JArr(List(JNum(1), JNum(2), JNum(3)))))
     assertEq(parseJ("[1,[2,3]]"), Right(JArr(List(JNum(1), JArr(List(JNum(2), JNum(3)))))))
     assert(parseJ("]").isLeft)
