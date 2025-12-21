@@ -238,20 +238,29 @@ object MediumRecursionKata:
           loop(0, word).exists(newIndex => wordBreak(s.drop(newIndex), dict))
 
 
+  def wordBreak2(s: String, dict: Set[String]): Boolean =
+    if dict.isEmpty then s.isEmpty
+    else
+      val dictWithLengths = dict.groupBy(_.length)
+      val lengths = dictWithLengths.keys.toList.sorted
+      val dictMaxLength = lengths.last
+      val cache = scala.collection.mutable.Map.empty[Int, Boolean]
 
+      def loop(index: Int): Boolean =
+        cache.getOrElseUpdate(index, {
+          if index == s.length then true
+          else
+            val maxLength = dictMaxLength min (s.length - index)
+            lengths.iterator
+              .takeWhile(_ <= maxLength)
+              .exists { len =>
+                dictWithLengths(len).exists { word =>
+                  s.regionMatches(index, word, 0, len) && loop(index + len)
+                }
+              }
+        })
 
-    /*@tailrec
-    def loop(index: Int, subDict: Set[String]): Boolean =
-      if index == s.length then true
-      else
-        val nextSubDict = subDict.filter(_.head == s.charAt(index)).map(_.tail)
-        if nextSubDict.isEmpty then false
-        else
-          if nextSubDict.exists(_.isEmpty) then loop(index + 1, dict)
-          else loop(index + 1, nextSubDict)
-
-    dict.map(loop(0, _))*/
-
+      loop(0)
 
 
   // ------------------------------------------------------------
@@ -262,7 +271,65 @@ object MediumRecursionKata:
   case class JNum(n: Int) extends J
   case class JArr(values: List[J]) extends J
 
+  def parseJ2(s: String): Either[String, J] =
+    def charAtOption(i: Int): Option[Char] =
+      if i >= s.length then None else Some(s.charAt(i))
+
+    @tailrec
+    def skipSpaces(i: Int): Int =
+      charAtOption(i) match
+        case Some(' ') => skipSpaces(i + 1)
+        case _ => i
+
+    @tailrec
+    def untilLastFigure(i: Int, acc: Int): (JNum, Int) =
+      charAtOption(i) match
+        case Some(c) if c.isDigit => untilLastFigure(i + 1, acc * 10 + c.asDigit)
+        case _ => (JNum(acc), i)
+
+    def readNumber(i0: Int): Either[String, (JNum, Int)] =
+      val i = skipSpaces(i0)
+      charAtOption(i) match
+        case Some(c) if c.isDigit => Right(untilLastFigure(i, 0))
+        case Some(c) => Left(s"Expected digit at position $i, got $c")
+        case None => Left(s"Expected digit at position $i, got end of string")
+
+    def readValue(i0: Int): Either[String, (J, Int)] =
+      val i = skipSpaces(i0)
+      charAtOption(i) match
+        case Some(c) if c.isDigit => readNumber(i)
+        case Some('[') => readArray(i + 1, Nil)
+        case Some(c) => Left(s"Expected digit or '[' at position $i, got $c")
+        case None => Left(s"Expected digit or '[' at position $i, got end of string")
+
+    def readArray(i0: Int, buildingRev: List[J]): Either[String, (J, Int)] =
+      val i = skipSpaces(i0)
+      charAtOption(i) match
+        case Some(']') =>
+          Right((JArr(buildingRev.reverse), i + 1)) // tableau vide ou fin après valeurs
+
+        case _ =>
+          readValue(i).flatMap { case (value, j0) =>
+            val j = skipSpaces(j0)
+            charAtOption(j) match
+              case Some(',') => readArray(j + 1, value :: buildingRev)
+              case Some(']') => Right((JArr((value :: buildingRev).reverse), j + 1))
+              case Some(c) => Left(s"Expected ',' or ']' at position $j, got $c")
+              case None => Left(s"Expected ',' or ']' at position $j, got end of string")
+          }
+
+    readValue(0).flatMap { case (value, lastIndex0) =>
+      val lastIndex = skipSpaces(lastIndex0)
+      if lastIndex == s.length then Right(value)
+      else Left(s"Not read completely: stopped at position $lastIndex")
+    }
+
+
   def parseJ(s: String): Either[String, J] =
+    def charAtOption(index: Int): Option[Char] =
+      if index >= s.length then None
+      else
+        Some(s.charAt(index))
     // TODO:
     // grammaire (espaces optionnels):
     // value := number | array
@@ -271,8 +338,41 @@ object MediumRecursionKata:
     //
     // Conseillé: parseValue(i): Either[String, (J, nextIndex)]
     // puis vérifier consommation complète (hors espaces)
-    ???
+    @tailrec
+    def untilLastFigure(index: Int, untilNow: Int): (JNum, Int) =
+      charAtOption(index) match
+        case Some(c) if c.isDigit => untilLastFigure(index + 1, c.asDigit + (untilNow * 10))
+        case _ => (JNum(untilNow), index)
 
+    @tailrec
+    def readValue(index: Int): Either[String, (J, Int)] =
+      charAtOption(index) match
+        case Some(c) if c.isDigit => readNumber(index)
+        case Some('[') => readArray(index + 1, List.empty[J])
+        case Some(' ') => readValue(index + 1)
+        case Some(c) => Left(s"Expected figure or '[' at position $index, got $c")
+        case None => Left(s"Expected figure or '[' at position $index, got end of String")
+
+    def readNumber(index: Int): Either[String, (JNum, Int)] =
+      charAtOption(index) match
+        case Some(c) if c.isDigit => Right(untilLastFigure(index, 0))
+        case _ => Left(s"Expected figure at position $index")
+
+    def readArray(index: Int, building: List[J]): Either[String, (J, Int)] =
+      readValue(index).flatMap:
+        case (value, nextIndex) =>
+          charAtOption(nextIndex) match
+            case Some(',') =>
+              readArray(nextIndex + 1, value +: building)
+            case Some(' ') =>
+              readArray(nextIndex + 1, building)
+            case Some(']') => Right(JArr((value +: building).reverse), nextIndex + 1)
+            case Some(c) => Left(s"Expected ',' or ']' at position $index, got $c")
+            case None => Left(s"Expected ',' or ']' at position $index, got end of String")
+
+    readValue(0).flatMap:
+      case (value, lastIndex) if lastIndex == s.length => Right(value)
+      case (value, lastIndex) => Left("Not read completely")
 
   // ------------------------------------------------------------
   // TESTS
@@ -365,13 +465,17 @@ object MediumRecursionKata:
     assertEq(wordBreak("applepenapple", Set("apple", "pen")), true)
     assertEq(wordBreak("catsandog", Set("cats", "dog", "sand", "and", "cat")), false)
 
+    assertEq(wordBreak2("leetcode", Set("leet", "code")), true)
+    assertEq(wordBreak2("applepenapple", Set("apple", "pen")), true)
+    assertEq(wordBreak2("catsandog", Set("cats", "dog", "sand", "and", "cat")), false)
+
     // 10) parseJ
-    /*assertEq(parseJ("123"), Right(JNum(123)))
+    assertEq(parseJ("123"), Right(JNum(123)))
     assertEq(parseJ("[1,2,3]"), Right(JArr(List(JNum(1), JNum(2), JNum(3)))))
     assertEq(parseJ("[1,[2,3]]"), Right(JArr(List(JNum(1), JArr(List(JNum(2), JNum(3)))))))
     assert(parseJ("]").isLeft)
     assert(parseJ("[1,]").isLeft)
 
-    println("✅ Tous les tests passent (si tu as complété les TODO).")*/
+    println("✅ Tous les tests passent (si tu as complété les TODO).")
 
 end MediumRecursionKata
